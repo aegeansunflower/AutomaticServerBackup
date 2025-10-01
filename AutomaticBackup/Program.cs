@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 
 class Program
 {
@@ -13,7 +12,6 @@ class Program
             if (configLines.Length < 2)
             {
                 Console.WriteLine("Config file must have 2 lines: server folder path and start script name.");
-                Console.WriteLine("Press any key to exit...");
                 Console.ReadKey();
                 return;
             }
@@ -24,34 +22,29 @@ class Program
             if (!Directory.Exists(serverFolder) || !File.Exists(startBat))
             {
                 Console.WriteLine("Server folder or start script not found.");
-                Console.WriteLine("Press any key to exit...");
                 Console.ReadKey();
                 return;
             }
 
-            var javaProcesses = Process.GetProcessesByName("java")
-                .Where(p => !p.HasExited).ToArray();
-
-            if (javaProcesses.Length > 0)
+            bool serverRunning = false;
+            try
             {
-                try
+                foreach (var proc in Process.GetProcessesByName("java"))
                 {
-                    foreach (var proc in javaProcesses)
+                    try
                     {
-                        if (proc.MainModule.FileName.StartsWith(serverFolder, StringComparison.OrdinalIgnoreCase))
-                        {
-                            Console.WriteLine("Please stop the server manually, then press any key to continue...");
-                            Console.ReadKey();
-                            break;
-                        }
+                        if (!proc.HasExited)
+                            serverRunning = true;
                     }
+                    catch { }
                 }
-                catch
-                {
-                    Console.WriteLine("Cannot detect server process properly. Make sure the server is stopped before backup.");
-                    Console.WriteLine("Press any key to continue...");
-                    Console.ReadKey();
-                }
+            }
+            catch { }
+
+            if (serverRunning)
+            {
+                Console.WriteLine("Server appears to be running. Please stop it manually, then press any key to continue...");
+                Console.ReadKey();
             }
 
             string backupRoot = Path.Combine(serverFolder, "Backups");
@@ -71,11 +64,12 @@ class Program
             }
 
             Console.WriteLine("Backup complete. Starting server...");
-            Process serverProcess = new Process();
-            serverProcess.StartInfo.FileName = startBat;
-            serverProcess.StartInfo.WorkingDirectory = serverFolder;
-            serverProcess.StartInfo.UseShellExecute = true;
-            serverProcess.Start();
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = startBat,
+                WorkingDirectory = serverFolder,
+                UseShellExecute = true
+            });
 
             Console.WriteLine("Server restarted successfully.");
         }
