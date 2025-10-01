@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 
 class Program
 {
@@ -26,27 +27,27 @@ class Program
                 return;
             }
 
-            bool serverRunning = false;
-            try
-            {
-                foreach (var proc in Process.GetProcessesByName("java"))
-                {
-                    try
-                    {
-                        if (!proc.HasExited)
-                            serverRunning = true;
-                    }
-                    catch { }
-                }
-            }
-            catch { }
+            Process server = new Process();
+            server.StartInfo.FileName = startBat;
+            server.StartInfo.WorkingDirectory = serverFolder;
+            server.StartInfo.UseShellExecute = false;
+            server.StartInfo.RedirectStandardInput = true;
+            server.StartInfo.RedirectStandardOutput = true;
+            server.StartInfo.RedirectStandardError = true;
+            server.OutputDataReceived += (s, e) => { if (e.Data != null) Console.WriteLine(e.Data); };
+            server.ErrorDataReceived += (s, e) => { if (e.Data != null) Console.WriteLine(e.Data); };
+            server.Start();
+            server.BeginOutputReadLine();
+            server.BeginErrorReadLine();
 
-            if (serverRunning)
-            {
-                Console.WriteLine("Server appears to be running. Please stop it manually, then press any key to continue...");
-                Console.ReadKey();
-            }
+            Console.WriteLine("Server started. Waiting 5 seconds...");
+            Thread.Sleep(5000);
 
+            Console.WriteLine("Stopping server for backup...");
+            server.StandardInput.WriteLine("stop");
+            server.WaitForExit();
+
+            Console.WriteLine("Creating backup...");
             string backupRoot = Path.Combine(serverFolder, "Backups");
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
             string backupPath = Path.Combine(backupRoot, timestamp);
@@ -59,17 +60,15 @@ class Program
                 string dest = Path.Combine(backupPath, world);
                 if (Directory.Exists(source))
                     CopyAll(new DirectoryInfo(source), new DirectoryInfo(dest));
-                else
-                    Console.WriteLine($"{world} not found. Skipping.");
             }
 
-            Console.WriteLine("Backup complete. Starting server...");
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = startBat,
-                WorkingDirectory = serverFolder,
-                UseShellExecute = true
-            });
+            Console.WriteLine("Backup complete. Restarting server...");
+
+            server = new Process();
+            server.StartInfo.FileName = startBat;
+            server.StartInfo.WorkingDirectory = serverFolder;
+            server.StartInfo.UseShellExecute = true;
+            server.Start();
 
             Console.WriteLine("Server restarted successfully.");
         }
@@ -91,5 +90,3 @@ class Program
             CopyAll(dir, target.CreateSubdirectory(dir.Name));
     }
 }
-
-//oopsie
